@@ -29,9 +29,7 @@ _Distributed under the [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-
 
 Check out our presentation below:
 
-<video src="./vid/presentation.webm" controls style="max-width: 100%; height: auto;">
-  Your browser does not support the video tag.
-</video>
+[Screencast from 2025-03-14 14-59-01.webm](https://github.com/user-attachments/assets/4d8ff2b2-d5b6-4488-bdeb-b4f3f4cadea2)
 
 ---
 
@@ -165,6 +163,7 @@ For a daily blast of pixel art nostalgia, you can configure your terminal to run
 # Display a random Revived Witch ANSI art image on terminal startup
 /path/to/rw-fetch/script.py --random --silent
 ```
+
 
 Or, to limit the random selection to smaller images:
 ```bash
