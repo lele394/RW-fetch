@@ -33,6 +33,12 @@ Check out our presentation below:
 
 ---
 
+## Some Notes
+
+Yes, **RW-fetch**, like **Neofetch**. ***"but it's not like neofetch!"*** Indeed, not yet. It's planned, I will add system info later and tie it to the `small` category. It's coming I swear.
+
+---
+
 ## Overview 🌟
 
 **RW-fetch** is a specialized tool for converting GIFs extracted from *Revived Witch* – a pixel art gacha game that captured many hearts before its unfortunate end-of-service. This script transforms these GIFs into ANSI art with minimal redundancy in escape codes, categorizes each image by size, and caches the output for faster re-displays. Perfect for reliving those retro gaming moments every time you fire up your terminal!
