@@ -25,6 +25,16 @@ _Distributed under the [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-
 
 ---
 
+## Presentation Video
+
+Check out our presentation below:
+
+<video src="./vid/presentation.webm" controls style="max-width: 100%; height: auto;">
+  Your browser does not support the video tag.
+</video>
+
+---
+
 ## Overview 🌟
 
 **RW-fetch** is a specialized tool for converting GIFs extracted from *Revived Witch* – a pixel art gacha game that captured many hearts before its unfortunate end-of-service. This script transforms these GIFs into ANSI art with minimal redundancy in escape codes, categorizes each image by size, and caches the output for faster re-displays. Perfect for reliving those retro gaming moments every time you fire up your terminal!

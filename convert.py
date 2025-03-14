@@ -154,10 +154,20 @@ def get_cache_info(cache_file, cache):
     print("==================\n")
 
 def main():
+    
+    # Get the directory of the current script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Use the script directory to build the default paths
+    default_rsc_dir = os.path.join(script_dir, "rsc")
+    default_cache = os.path.join(script_dir, "cache.json")
+
     parser = argparse.ArgumentParser(description="Convert images to ANSI art with caching and categorization")
+    
+    parser.add_argument("--rsc-dir", default=default_rsc_dir, help=f"Directory containing image files (default: {default_rsc_dir})")
+    parser.add_argument("--cache", default=default_cache, help=f"Path to JSON cache file (default: {default_cache})")
+    
     parser.add_argument("file", nargs="?", help="Image file to process. If omitted, all .gif files in rsc/ directory are processed.")
-    parser.add_argument("--rsc-dir", default="rsc", help="Directory containing image files (default: rsc)")
-    parser.add_argument("--cache", default="cache.json", help="Path to JSON cache file (default: cache.json)")
     parser.add_argument("--refresh", action="store_true", help="Force reprocessing images even if cached")
     parser.add_argument("--random", action="store_true", help="Display a random cached image")
     parser.add_argument("--cache-info", action="store_true", help="Display cache statistics")
