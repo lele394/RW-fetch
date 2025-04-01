@@ -8,6 +8,7 @@ _Distributed under the [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-
 ## Table of Contents 📚
 
 - [Overview 🌟](#overview-)
+- [Screenshots 📸](#screenshots-)
 - [Features ✨](#features-)
 - [Installation 🛠️](#installation-)
   - [Python Version](#python-version)
@@ -43,6 +44,13 @@ RW-fetch primarily consists of a Python script designed to:
 Additionally, an **optional Rust version** is provided, focused *specifically* on fast display of random art with system info, ideal for reducing shell startup times compared to initializing Python/Conda.
 
 The project aims to be a fun, visually appealing, and informative addition to your terminal environment.
+
+## Screenshots 📸
+![1](./media/1.png)
+
+![2](./media/2.png)
+
+![3](./media/3.png)
 
 ## Features ✨
 
