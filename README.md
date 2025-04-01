@@ -10,24 +10,29 @@ _Distributed under the [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-
 - [Overview 🌟](#overview-)
 - [Features ✨](#features-)
 - [Installation 🛠️](#installation-)
+  - [Python Version](#python-version)
+  - [Rust Version (Optional Speedup)](#rust-version-optional-speedup)
 - [Get Started 🚀](#get-started-)
   - [Adding New Images/GIFs 📁](#adding-new-imagesgifs-)
   - [Generating the Cache ⚡](#generating-the-cache-)
-  - [Basic Display Commands 💻](#basic-display-commands-)
+  - [Basic Display Commands (Python) 💻](#basic-display-commands-python-)
 - [Usage Details ⚙️](#usage-details-)
   - [Cache Management 💾](#cache-management-)
+    - [Cache Purging Utility](#cache-purging-utility-)
   - [Image Categorization & Thresholds 📏](#image-categorization--thresholds-)
   - [Displaying Random Images 🎲](#displaying-random-images-)
   - [System Information Display 📊](#system-information-display-)
-- [Examples 🔍](#examples-)
-- [Parameters Explained 🎛️](#parameters-explained-%EF%B8%8F)
+- [Examples (Python Script) 🔍](#examples-python-script-)
+- [Parameters Explained (Python Script) 🎛️](#parameters-explained-python-script-%EF%B8%8F)
 - [Terminal Startup Integration ⏰](#terminal-startup-integration-)
+  - [Using the Python Script](#using-the-python-script)
+  - [Using the Rust Version](#using-the-rust-version)
 - [Contributing 🤝](#contributing-)
 - [License 📄](#license-)
 
 ## Overview 🌟
 
-RW-fetch is a Python script designed to:
+RW-fetch primarily consists of a Python script designed to:
 
 1.  **Convert Images:** Transform static images and animated GIFs (like those from *Revived Witch*) into ANSI escape sequences suitable for display in modern terminals. It uses the half-block character (`▀`) technique for higher vertical resolution and attempts to preserve transparency.
 2.  **Display Art:** Render the generated ANSI art directly in your terminal.
@@ -35,9 +40,13 @@ RW-fetch is a Python script designed to:
 4.  **Cache Results:** Store the generated ANSI art and image metadata in a JSON cache file (`cache.json` by default) to significantly speed up subsequent displays, especially for random selections.
 5.  **Categorize & Filter:** Classify images based on the height of their ANSI art ("small", "medium", "large", "extra-large") and allow filtering based on these categories.
 
-It aims to be a fun, visually appealing, and informative addition to your terminal environment, powered by Python, Pillow, and optionally `psutil` and `orjson` for enhanced performance and features.
+Additionally, an **optional Rust version** is provided, focused *specifically* on fast display of random art with system info, ideal for reducing shell startup times compared to initializing Python/Conda.
+
+The project aims to be a fun, visually appealing, and informative addition to your terminal environment.
 
 ## Features ✨
+
+*(Refers mainly to the primary `rw_fetch.py` script)*
 
 *   **Image to ANSI Conversion:** Renders images (PNG, GIF, JPG, WEBP, BMP) as ANSI art using 24-bit color escape codes.
 *   **Animated GIF Support:** Selects a random frame from animated GIFs for conversion.
@@ -54,8 +63,11 @@ It aims to be a fun, visually appealing, and informative addition to your termin
 *   **Configurable:** Key settings like paths, category thresholds, system info order/commands, and colors are managed in `config.py`.
 *   **Cross-Platform:** Primarily Python-based, aiming for compatibility across Linux, macOS, and potentially WSL. Note that some fallback shell commands for system info might be OS-specific.
 *   **Silent Mode:** Suppresses informational messages (`--silent`) for cleaner output, ideal for terminal startup scripts.
+*   **Cache Purging:** Includes a separate `purge_cache.py` script to remove entries by category.
 
 ## Installation 🛠️
+
+### Python Version
 
 1.  **Prerequisites:**
     *   Python 3.6 or later.
@@ -63,8 +75,9 @@ It aims to be a fun, visually appealing, and informative addition to your termin
 
 2.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/your-username/rw-fetch.git # Replace with the actual repo URL
-    cd rw-fetch
+    # Replace with the actual repo URL if different
+    git clone https://github.com/lele394/RW-fetch.git
+    cd RW-fetch
     ```
 
 3.  **Install Required Python Dependencies:**
@@ -79,57 +92,73 @@ It aims to be a fun, visually appealing, and informative addition to your termin
     ```bash
     pip install psutil orjson
     ```
-    If `psutil` is not installed, the script will show warnings and some system info fields (like Memory, detailed Uptime) will display "N/A" or rely on less reliable methods. If `orjson` is not found, it falls back to Python's built-in `json` module.
+    *(See Features section for behavior if these are not installed)*
 
 5.  **System Dependencies (for Fallback Commands):**
-    *   Some system information items rely on external commands (defined in `config.py`). You might need to install tools like `lspci`, `xrandr`, `wmctrl`, `gsettings` (for GNOME/GTK), `kreadconfig5` (for KDE Plasma), `jq`, `system_profiler` (macOS), `dpkg-query` (Debian/Ubuntu), `rpm` (Fedora/CentOS), `snap`, `flatpak` depending on your OS and what information you want displayed accurately via the fallbacks. The script attempts to handle their absence gracefully but might show "N/A" or errors for those specific fields if the commands fail or are missing.
+    *   Some system information items in `rw_fetch.py` rely on external commands (defined in `config.py`). You might need to install tools like `lspci`, `xrandr`, `wmctrl`, `gsettings`, `kreadconfig5`, `jq`, `system_profiler`, `dpkg-query`, `rpm`, `snap`, `flatpak` depending on your OS and desired info.
 
-6.  **Make the Script Executable (Optional):**
+6.  **Make Scripts Executable (Optional):**
     ```bash
-    chmod +x rw_fetch.py
+    chmod +x rw_fetch.py purge_cache.py
     ```
-    This allows you to run it directly using `./rw_fetch.py` instead of `python rw_fetch.py`.
+
+### Rust Version (Optional Speedup)
+
+If you want the fastest possible startup for displaying a random image with sysinfo (e.g., for your shell prompt) and wish to avoid Python/Conda initialization overhead:
+
+1.  **Prerequisites:**
+    *   **Rust Toolchain:** Install Rust and Cargo (usually via `rustup`). Visit [rust-lang.org](https://www.rust-lang.org/).
+    *   **Generated Cache:** You *must* first generate a `cache.json` file using the Python script (`./rw_fetch.py`). The Rust version only reads the cache.
+
+2.  **Compile:**
+    *   Use the provided compilation script, which includes optimizations for speed:
+        ```bash
+        ./compile_fast.sh
+        ```
+    *   This script will build the Rust project using `cargo build --release` with flags like `-C target-cpu=native` (optimizing for your current CPU, potentially breaking portability to older CPUs) and recommended settings in `Cargo.toml`.
+    *   It will attempt to copy the final optimized executable to `./bin/rw_fetch_rs`.
+
+3.  **Make Executable (If needed):** The compile script usually handles this, but if you build manually:
+    ```bash
+    chmod +x ./bin/rw_fetch_rs
+    # Or use the path inside target/release/ if you didn't use the script
+    # chmod +x ./target/release/rw_fetch_rs
+    ```
 
 ## Get Started 🚀
 
-This section provides the quickest way to get RW-fetch running.
+This section focuses on the primary Python script. See [Using the Rust Version](#using-the-rust-version) for the compiled alternative.
 
 ### Adding New Images/GIFs 📁
 
-*   By default, the script looks for images in a directory named `rsc` located in the same directory as the script.
-*   Simply **place your `.gif`, `.png`, `.jpg`, `.webp`, or `.bmp` files inside the `rsc/` directory.**
-*   You can change the source directory using the `--rsc-dir <path>` argument.
+*   By default, `rw_fetch.py` looks for images in `./rsc/`.
+*   Place your `.gif`, `.png`, `.jpg`, `.webp`, or `.bmp` files inside the `rsc/` directory.
+*   Use `--rsc-dir <path>` to specify a different image source.
 
 ### Generating the Cache ⚡
 
-*   The cache stores the pre-converted ANSI art, making future runs (especially `--random`) much faster.
-*   To generate or update the cache for all supported images found in the `rsc/` directory (or the one specified by `--rsc-dir`), simply run the script without the `--random` or specific file arguments:
+*   The cache (`cache.json`) stores pre-converted ANSI art for speed.
+*   **Generate/update the cache using the Python script:**
     ```bash
-    # If you made it executable:
     ./rw_fetch.py
-
-    # Or using python:
-    python rw_fetch.py
+    # Or: python rw_fetch.py
     ```
-*   The script will process each image, display it (unless `--silent` is used), and save the results to `cache.json` (or the file specified by `--cache`). You only need to do this once initially, or whenever you add/remove images, or if you want to refresh existing entries (using `--refresh`).
+*   This processes all images in the `rsc/` directory (or specified `--rsc-dir`), displays them (unless `--silent`), and saves to `cache.json`. Do this initially and whenever images are added/removed or need refreshing (`--refresh`).
 
-### Basic Display Commands 💻
+### Basic Display Commands (Python) 💻
 
 *   **Display a specific image:**
     ```bash
     ./rw_fetch.py rsc/your_favorite.gif
     ```
-
 *   **Display a random image from the cache:**
     ```bash
     ./rw_fetch.py --random
     ```
-
 *   **Display a random image with system info:**
     ```bash
     ./rw_fetch.py --random --sysinfo
     ```
-
 *   **Display a random *small* image, with system info, silently (ideal for startup):**
     ```bash
     ./rw_fetch.py --random --small --sysinfo --silent
@@ -137,134 +166,141 @@ This section provides the quickest way to get RW-fetch running.
 
 ## Usage Details ⚙️
 
+*(Refers mainly to the primary `rw_fetch.py` script)*
+
 ### Cache Management 💾
 
-*   **Cache File:** By default, `cache.json` in the script's directory. Use `--cache <path>` to specify a different location.
-*   **Automatic Caching:** When processing a directory or a specific file (without `--refresh`), the script checks the cache first. If a valid entry exists, it's used. Otherwise, the image is processed, and the result is added to the cache.
-*   **Forcing Refresh:** Use `--refresh` to ignore existing cache entries and force reprocessing of images. The cache will be updated with the new results.
+*   **Cache File:** Default `./cache.json`. Use `--cache <path>` to change.
+*   **Automatic Caching:** Uses cache if valid entry exists, otherwise processes image and updates cache.
+*   **Forcing Refresh:** `--refresh` ignores cache and reprocesses.
     ```bash
-    ./rw_fetch.py --refresh # Reprocess all images in rsc/
-    ./rw_fetch.py rsc/image.png --refresh # Reprocess only image.png
+    ./rw_fetch.py --refresh # Reprocess all in rsc/
+    ./rw_fetch.py rsc/image.png --refresh # Reprocess one file
     ```
-*   **Viewing Cache Info:** Use `--cache-info` to display statistics about the current cache file (path, size, number of entries, category breakdown).
+*   **Viewing Cache Info:** `--cache-info` shows statistics.
     ```bash
     ./rw_fetch.py --cache-info
     ```
+*   **Purging Cache by Category:** Use the separate `purge_cache.py` script (see below).
+
+#### Cache Purging Utility (`purge_cache.py`) 🧹
+
+A utility script, `purge_cache.py`, is included to remove all cache entries belonging to a specific category.
+
+**How it Works:**
+
+1.  Loads the cache (`cache.json` or specified by `--cache`).
+2.  Filters out entries matching the specified category (case-insensitive).
+3.  Creates a backup (`.bak` file) by default (`--no-backup` to disable).
+4.  Saves the filtered cache back to the original file.
+5.  Reports a summary.
+
+**Usage Example:**
+
+```bash
+# Remove all 'medium' entries from cache.json
+./purge_cache.py medium
+
+# Remove 'extra-large' entries without backup
+./purge_cache.py extra-large --no-backup
+```
 
 ### Image Categorization & Thresholds 📏
 
-*   Images are categorized based on the number of lines in their generated ANSI art:
-    *   `small`: Fewer lines than `SMALL_THRESHOLD`
-    *   `medium`: Fewer lines than `MEDIUM_THRESHOLD`
-    *   `large`: Fewer lines than `LARGE_THRESHOLD`
-    *   `extra-large`: Equal to or more lines than `LARGE_THRESHOLD`
-*   These thresholds (`SMALL_THRESHOLD`, `MEDIUM_THRESHOLD`, `LARGE_THRESHOLD`) can be adjusted in the `config.py` file.
+*   Images categorized by ANSI art height (`small`, `medium`, `large`, `extra-large`).
+*   Thresholds defined in `config.py` (`SMALL_THRESHOLD`, etc.).
 
 ### Displaying Random Images 🎲
 
-*   The `--random` flag selects a random entry from the cache.
-*   You can combine `--random` with category filters:
+*   `--random` selects from cache.
+*   Combine with category filters (`--small`, `--medium`, etc.).
     ```bash
-    ./rw_fetch.py --random --medium # Show a random medium-sized image
-    ./rw_fetch.py --random --large --extra-large # Show a random large OR extra-large image
+    ./rw_fetch.py --random --medium # Random medium image
     ```
-*   If no cached images match the filter criteria, an error message is shown.
 
 ### System Information Display 📊
 
-*   Use `--fetch-system` or its alias `--sysinfo` to display system information alongside the image.
-*   The information displayed, its order, labels, colors, and any fallback commands used are defined in `config.py` within the `SYSTEM_INFO_ORDER` list and `FALLBACK_COMMANDS` dictionary.
-*   If `psutil` is not installed, fields like Memory, detailed Uptime, and CPU frequency/usage might show "N/A" or limited information, and a warning message will be appended.
-*   Fallback commands are executed via `subprocess` if a direct Python method isn't available or specified for a label in `SYSTEM_INFO_ORDER`. Errors during command execution (e.g., command not found, timeout) are displayed inline.
+*   `--fetch-system` or `--sysinfo` enables the side panel.
+*   Order, content, fallbacks defined in `config.py`.
+*   `psutil` provides more detailed info (CPU%, Memory, Uptime).
+*   Fallback commands run via `subprocess`; errors shown inline.
 
-## Examples 🔍
+## Examples (Python Script) 🔍
 
-1.  **Process and display a specific image:**
-    ```bash
-    ./rw_fetch.py rsc/witch_stand.gif
-    ```
+1.  **Display specific image:** `./rw_fetch.py rsc/witch_stand.gif`
+2.  **Display specific image + sysinfo:** `./rw_fetch.py rsc/another.png --sysinfo`
+3.  **Build/update cache:** `./rw_fetch.py`
+4.  **Show random image:** `./rw_fetch.py --random`
+5.  **Show random LARGE or XL image + sysinfo:** `./rw_fetch.py --random --large --extra-large --sysinfo`
+6.  **Show cache stats:** `./rw_fetch.py --cache-info`
+7.  **Show random SMALL image + sysinfo (silent):** `./rw_fetch.py --random --small --sysinfo --silent`
+8.  **Force reprocess in custom dir:** `./rw_fetch.py --rsc-dir /path/to/my/images --refresh`
 
-2.  **Process/display a specific image and show system info:**
-    ```bash
-    ./rw_fetch.py rsc/another.png --sysinfo
-    ```
+## Parameters Explained (Python Script) 🎛️
 
-3.  **Build/update the cache for all images in `rsc/` (shows processing output):**
-    ```bash
-    ./rw_fetch.py
-    ```
-
-4.  **Show a random image from the cache:**
-    ```bash
-    ./rw_fetch.py --random
-    ```
-
-5.  **Show a random LARGE or EXTRA-LARGE image with system info:**
-    ```bash
-    ./rw_fetch.py --random --large --extra-large --sysinfo
-    ```
-
-6.  **Show statistics about the cache:**
-    ```bash
-    ./rw_fetch.py --cache-info
-    ```
-
-7.  **Show a random SMALL image with system info, without any log messages (good for startup):**
-    ```bash
-    ./rw_fetch.py --random --small --sysinfo --silent
-    ```
-
-8.  **Force reprocessing of all images in a custom directory:**
-    ```bash
-    ./rw_fetch.py --rsc-dir /path/to/my/images --refresh
-    ```
-
-## Parameters Explained 🎛️
-
-*   `--rsc-dir <path>`: Specifies the directory containing image files. (Default: `./rsc`)
-*   `--cache <path>`: Specifies the path to the JSON cache file. (Default: `./cache.json`)
-*   `file`: (Positional argument) Path to a specific image file to process. If omitted, the script processes compatible files in `--rsc-dir`.
-*   `--refresh`: Ignores existing cache entries and forces reprocessing of the specified image(s). Updates the cache with the new result.
-*   `--random`: Displays a random image from the cache, honoring category filters if set.
-*   `--fetch-system`, `--sysinfo`: Displays system information alongside the image art.
-*   `--cache-info`: Displays statistics about the cache file (size, entry count, categories) and exits.
-*   `--silent`: Suppresses non-essential output (like "Processing:", "Cached:", category info). Useful for clean output in scripts or terminal startup.
-*   `--small`: Filters for images categorized as "small". Used with `--random` or when processing a directory.
-*   `--medium`: Filters for images categorized as "medium".
-*   `--large`: Filters for images categorized as "large".
-*   `--extra-large`: Filters for images categorized as "extra-large".
+*   `--rsc-dir <path>`: Image source directory (Default: `./rsc`).
+*   `--cache <path>`: Cache file path (Default: `./cache.json`).
+*   `file`: Specific image file to process (optional).
+*   `--refresh`: Force reprocessing, ignore cache.
+*   `--random`: Display random cached image (respects filters).
+*   `--fetch-system`, `--sysinfo`: Display system info panel.
+*   `--cache-info`: Display cache stats and exit.
+*   `--silent`: Suppress non-essential output.
+*   `--small`, `--medium`, `--large`, `--extra-large`: Filter images by category.
 
 ## Terminal Startup Integration ⏰
 
-You can add RW-fetch to your shell's startup file (like `.bashrc`, `.zshrc`, `.config/fish/config.fish`) to see a random artwork every time you open a new terminal. Remember to use the full path to the script unless it's in your system's PATH. Using `--silent` is recommended here.
+Add a command to your shell's startup file (`.bashrc`, `.zshrc`, `.config/fish/config.fish`) to run RW-fetch automatically. **Using the full path to the executable is recommended.**
 
-Example for `.bashrc` or `.zshrc`:
+### Using the Python Script
 
+Ensure the cache is generated first. Using `--silent` is recommended.
+
+*Example for `.bashrc` or `.zshrc`:*
 ```bash
-# Add this line at the end of your ~/.bashrc or ~/.zshrc
-/path/to/rw-fetch/rw_fetch.py --random --small --sysinfo --silent
+# Add this line at the end
+/full/path/to/RW-fetch/rw_fetch.py --random --small --sysinfo --silent
 ```
 
-Example for Fish shell (`~/.config/fish/config.fish`):
-
+*Example for Fish shell (`~/.config/fish/config.fish`):*
 ```fish
-# Add this line to your config.fish
-/path/to/rw-fetch/rw_fetch.py --random --small --sysinfo --silent
+# Add this line
+/full/path/to/RW-fetch/rw_fetch.py --random --small --sysinfo --silent
 ```
 
-*Replace `/path/to/rw-fetch/` with the actual path to where you cloned the repository.* Make sure the cache has been generated at least once before adding it to your startup file.
+*(Replace `/full/path/to/RW-fetch/`)*
 
-### Using Rust version
+### Using the Rust Version
 
-I made a small compiled version to avoid having to initialize conda in my terminal everytime. (not gonna lie, chugged it to Gemini 2.5).
+This is ideal if Python/Conda startup time is noticeable.
 
-Please make sure to first process a cache using python. Compile the rust version using `compile_rust.sh`, which will copy back the executable in your directory. Now you can `chmod +x rw_fetch_rs.o` and use it directly.
+1.  **Ensure Cache Exists:** Generate `cache.json` using the Python script first.
+2.  **Compile:** Use `./compile_fast.sh` to create the optimized executable (e.g., `./bin/rw_fetch_rs`).
+3.  **Add to Startup:** Use the full path to the compiled Rust executable.
 
-Use this method if you would rather not use python on each shell spawn.
+*Example for `.bashrc` or `.zshrc`:*
+```bash
+# Add this line at the end
+/full/path/to/RW-fetch/bin/rw_fetch_rs # No arguments needed, compiled for specific task
+```
+
+*Example for Fish shell (`~/.config/fish/config.fish`):*
+```fish
+# Add this line
+/full/path/to/RW-fetch/bin/rw_fetch_rs # No arguments needed
+```
+
+*(Replace `/full/path/to/RW-fetch/`)*
+
+**Note:** The Rust version currently only implements the equivalent of the Python script's `--random --small --sysinfo --silent` command. It cannot generate the cache, display specific files, or use different filters without recompilation.
 
 ## Contributing 🤝
 
-Open an issue with your request and potential fixes. I'll see what I can do!
+Contributions, bug reports, and suggestions are welcome!
+
+1.  Please check the [Issues](https://github.com/lele394/RW-fetch/issues) page first to see if your topic already exists.
+2.  Open a new issue to discuss bugs, suggest features, or ask questions.
+3.  If you'd like to contribute code, please open an issue first to discuss the proposed changes. Standard fork/branch/pull request workflow is preferred.
 
 ## License 📄
 
