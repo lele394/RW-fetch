@@ -4,247 +4,565 @@ import random
 import argparse
 import os
 import json
+import subprocess
+import shutil
+import math # Needed for separator centering
 from PIL import Image
+from itertools import zip_longest
 
+# Import configuration variables
+try:
+    import config
+except ImportError:
+    print("Error: config.py not found. Please ensure it exists in the same directory.")
+    sys.exit(1)
+
+# --- ANSI Color Functions ---
+# (Keep these functions as they were in the previous version)
 def rgb_to_ansi_fg(r, g, b, a):
-    if a == 0:
-        return "\033[39m", " "
+    if a < 128:
+        return config.RESET_COLOR, " "
     return f"\033[38;2;{r};{g};{b}m", "▀"
 
 def rgb_to_ansi_bg(r, g, b, a):
-    if a == 0:
+    if a < 128:
         return "\033[49m"
     return f"\033[48;2;{r};{g};{b}m"
 
 def reset_ansi():
-    return "\033[0m"
+    return config.RESET_COLOR
 
+# --- Image Processing Functions ---
+# (Keep crop_transparent_borders and image_to_ansi as they were)
 def crop_transparent_borders(image):
+    """Crops transparent borders from a PIL Image."""
     image = image.convert("RGBA")
-    width, height = image.size
-    pix = image.load()
-    
-    top, bottom = 0, height - 1
-    left, right = 0, width - 1
+    try:
+        bbox = image.getbbox()
+    except Exception:
+         bbox = None
 
-    for y in range(height):
-        if any(pix[x, y][3] != 0 for x in range(width)):
-            top = y
-            break
+    if bbox:
+        return image.crop(bbox)
+    else:
+        return Image.new('RGBA', (1, 1), (0, 0, 0, 0))
 
-    for y in range(height - 1, -1, -1):
-        if any(pix[x, y][3] != 0 for x in range(width)):
-            bottom = y
-            break
-
-    for x in range(width):
-        if any(pix[x, y][3] != 0 for y in range(top, bottom + 1)):
-            left = x
-            break
-
-    for x in range(width - 1, -1, -1):
-        if any(pix[x, y][3] != 0 for y in range(top, bottom + 1)):
-            right = x
-            break
-
-    return image.crop((left, top, right + 1, bottom + 1))
 
 def image_to_ansi(image):
     """
-    Convert the image to ANSI art while minimizing repeated escape codes.
-    If the foreground or background is identical to the previous pixel in the line,
-    the code won't be re-emitted.
+    Convert the image to ANSI art using half-block characters.
+    Minimizes repeated escape codes within each line.
     """
     image = image.convert("RGBA")
     image = crop_transparent_borders(image)
     width, height = image.size
-    ansi_str = ""
+    ansi_lines = []
 
-    # Process two rows at a time (using one character per two rows)
+    if height % 2 != 0:
+        # Create a new image with an extra transparent row at the bottom
+        img_copy = Image.new('RGBA', (width, height + 1), (0, 0, 0, 0))
+        img_copy.paste(image, (0, 0))
+        image = img_copy
+        height += 1 # Update height for the loop
+
     for y in range(0, height, 2):
         line = ""
-        last_fg = ""
-        last_bg = ""
+        last_fg_ansi = None
+        last_bg_ansi = None
         for x in range(width):
-            top_pixel = image.getpixel((x, y))
-            bottom_pixel = image.getpixel((x, y+1)) if y+1 < height else (0, 0, 0, 0)
-            fg, char = rgb_to_ansi_fg(*top_pixel)
-            bg = rgb_to_ansi_bg(*bottom_pixel)
-            pixel_str = ""
-            if bg != last_bg:
-                pixel_str += bg
-                last_bg = bg
-            if fg != last_fg:
-                pixel_str += fg
-                last_fg = fg
-            pixel_str += char
-            line += pixel_str
-        line += reset_ansi()
-        ansi_str += line + "\n"
-    return ansi_str
+            r_fg, g_fg, b_fg, a_fg = image.getpixel((x, y))
+            r_bg, g_bg, b_bg, a_bg = image.getpixel((x, y + 1))
 
-def classify_image(ansi_art, small_threshold, medium_threshold, large_threshold):
-    # Count the number of output lines
+            fg_ansi, char = rgb_to_ansi_fg(r_fg, g_fg, b_fg, a_fg)
+            bg_ansi = rgb_to_ansi_bg(r_bg, g_bg, b_bg, a_bg)
+
+            current_line = ""
+            if bg_ansi != last_bg_ansi:
+                current_line += bg_ansi
+                last_bg_ansi = bg_ansi
+
+            # Only set foreground if the character is not just a space (transparent)
+            # and the color is different from the last one
+            if char != " " and fg_ansi != last_fg_ansi:
+                 current_line += fg_ansi
+                 last_fg_ansi = fg_ansi
+            # If char is transparent space, explicitly set default foreground if needed
+            elif char == " " and last_fg_ansi != "\033[39m":
+                 current_line += "\033[39m"
+                 last_fg_ansi = "\033[39m"
+            # If char is not space, but fg is same as last, do nothing for fg
+
+            current_line += char
+            line += current_line
+
+        line += reset_ansi()
+        ansi_lines.append(line)
+
+    # Handle case where image might become empty after cropping
+    if not ansi_lines and width > 0 and height > 0:
+         # Return a single reset code if the image existed but produced no lines
+         # This can happen with 1-pixel high images after padding adjustment if original height was 0
+         return config.RESET_COLOR
+    elif not ansi_lines:
+         # Return empty string if image was truly empty (0 width or height initially)
+         return ""
+
+
+    return "\n".join(ansi_lines)
+
+
+# --- Classification and Caching ---
+# (Keep classify_image, load_cache, save_cache, process_image as they were)
+def classify_image(ansi_art):
+    """Classify ANSI art based on the number of lines using config thresholds."""
     lines = ansi_art.strip('\n').split("\n")
     num_lines = len(lines)
-    if num_lines < small_threshold:
+    if num_lines < config.SMALL_THRESHOLD:
         category = "small"
-    elif num_lines < medium_threshold:
+    elif num_lines < config.MEDIUM_THRESHOLD:
         category = "medium"
-    elif num_lines < large_threshold:
+    elif num_lines < config.LARGE_THRESHOLD:
         category = "large"
     else:
         category = "extra-large"
     return category, num_lines
 
 def load_cache(cache_file):
+    """Loads the JSON cache file."""
     if os.path.exists(cache_file):
         try:
             with open(cache_file, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"Error loading cache: {e}")
+                # Handle empty file case
+                content = f.read()
+                if not content:
+                    return {}
+                return json.loads(content)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Warning: Error loading cache file {cache_file}: {e}", file=sys.stderr)
             return {}
     return {}
 
 def save_cache(cache, cache_file):
+    """Saves the cache dictionary to a JSON file."""
     try:
+        cache_dir = os.path.dirname(cache_file)
+        if cache_dir and not os.path.exists(cache_dir):
+             os.makedirs(cache_dir, exist_ok=True)
         with open(cache_file, "w") as f:
-            json.dump(cache, f)
+            json.dump(cache, f, indent=2)
+    except IOError as e:
+        print(f"Error: Could not save cache file {cache_file}: {e}", file=sys.stderr)
     except Exception as e:
-        print(f"Error saving cache: {e}")
+         print(f"An unexpected error occurred while saving cache: {e}", file=sys.stderr)
 
-def process_image(file_path, small_threshold, medium_threshold, large_threshold):
-    # Open and process the image, then classify its ANSI output.
+
+def process_image(file_path):
+    """Opens, converts, and classifies an image, returning its data."""
     try:
         img = Image.open(file_path)
+    except FileNotFoundError:
+        print(f"Error: Image file not found: {file_path}", file=sys.stderr)
+        return None
     except Exception as e:
-        print(f"Error opening image {file_path}: {e}")
+        print(f"Error opening image {file_path}: {e}", file=sys.stderr)
         return None
 
-    # For animated GIFs, choose a random frame.
-    if getattr(img, "is_animated", False):
-        random_frame = random.randint(0, img.n_frames - 1)
-        img.seek(random_frame)
+    try:
+        if getattr(img, "is_animated", False) and img.n_frames > 1:
+            random_frame = random.randint(0, img.n_frames - 1)
+            img.seek(random_frame)
+            img.load()
 
-    ansi_art = image_to_ansi(img)
-    category, num_lines = classify_image(ansi_art, small_threshold, medium_threshold, large_threshold)
-    return {"ansi_art": ansi_art, "category": category, "num_lines": num_lines}
+        ansi_art = image_to_ansi(img)
+        # Check if ansi_art is empty or just whitespace before classifying
+        if not ansi_art or ansi_art.isspace():
+             # Handle cases where image processing results in no visible output
+             category = "empty"
+             num_lines = 0
+        else:
+            category, num_lines = classify_image(ansi_art)
 
+        return {"ansi_art": ansi_art, "category": category, "num_lines": num_lines}
+
+    except Exception as e:
+        # Try to get frame number for better debugging
+        frame_info = ""
+        try:
+            frame_info = f" (frame {img.tell()})" if getattr(img, "is_animated", False) else ""
+        except Exception:
+             pass # Ignore error getting frame number
+        print(f"Error processing image {file_path}{frame_info}: {e}", file=sys.stderr)
+        return None
+    finally:
+        img.close()
+
+
+# --- System Information Fetching ---
+# (Keep fetch_system_info_item as it was)
+def fetch_system_info_item(command):
+    """Executes a single shell command and returns its output."""
+    try:
+        result = subprocess.run(
+            command,
+            shell=True, # Be cautious with shell=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+            timeout=10 # Increased timeout slightly for potentially slower commands
+        )
+        return result.stdout.strip()
+    except FileNotFoundError as e:
+         # Extract command name if possible
+         cmd_name = command.split()[0] if command else "Unknown"
+         return f"{config.SYS_INFO_ERROR_COLOR}Err: Cmd '{cmd_name}' not found{config.RESET_COLOR}"
+    except subprocess.CalledProcessError as e:
+        err_msg = e.stderr.strip() if e.stderr else f"Exit {e.returncode}"
+        # Truncate long error messages
+        if len(err_msg) > 50:
+             err_msg = err_msg[:47] + "..."
+        return f"{config.SYS_INFO_ERROR_COLOR}Cmd Err: {err_msg}{config.RESET_COLOR}"
+    except subprocess.TimeoutExpired:
+         return f"{config.SYS_INFO_ERROR_COLOR}Error: Timeout{config.RESET_COLOR}"
+    except Exception as e:
+        # Keep error messages concise
+        err_str = str(e)
+        if len(err_str) > 50:
+            err_str = err_str[:47] + "..."
+        return f"{config.SYS_INFO_ERROR_COLOR}Error: {err_str}{config.RESET_COLOR}"
+
+
+# MODIFIED function to handle SYSTEM_INFO_ORDER
+def get_formatted_system_info():
+    """Fetches and formats system information based on config.SYSTEM_INFO_ORDER."""
+    info_lines = []
+    max_label_len = 0
+    labels_in_order = [] # Store labels to calculate max length accurately
+
+    # First pass: identify labels and calculate max length
+    for item in config.SYSTEM_INFO_ORDER:
+        if isinstance(item, dict) and "label" in item:
+            label = item["label"]
+            # Exclude the Color Palette label from length calculation as it's special
+            if label != "Color Palette":
+                 labels_in_order.append(label)
+                 max_label_len = max(max_label_len, len(label))
+
+    # Second pass: fetch data and format lines
+    for item in config.SYSTEM_INFO_ORDER:
+        if not isinstance(item, dict):
+            continue # Skip invalid entries
+
+        if "separator" in item:
+            separator_text = item["separator"]
+            # Approximate width for centering/line drawing
+            # Use max_label_len + separator width + typical value space estimate
+            line_width = max_label_len + len(config.SYS_INFO_KV_SEPARATOR) + 15 # Adjust estimate as needed
+
+            if isinstance(separator_text, str) and separator_text:
+                # Custom text separator, try to center it roughly
+                padding = (line_width - len(separator_text)) // 2
+                padding = max(0, padding) # Ensure non-negative padding
+                info_lines.append(f"{' ' * padding}{config.SYS_INFO_LABEL_COLOR}{separator_text}{config.RESET_COLOR}")
+            else:
+                # Default separator line using the defined character
+                info_lines.append(f"{config.SYS_INFO_LABEL_COLOR}{config.SYS_INFO_SEPARATOR_CHAR * line_width}{config.RESET_COLOR}")
+            continue
+
+        if "label" in item:
+            label = item["label"]
+            command = config.SYSTEM_INFO_COMMANDS.get(label)
+
+            if not command:
+                 value = f"{config.SYS_INFO_ERROR_COLOR}N/A (no command){config.RESET_COLOR}"
+                 padded_label = label.ljust(max_label_len) if label != "Color Palette" else ""
+            else:
+                value = fetch_system_info_item(command)
+                # Handle multi-line values (like color palette), indent subsequent lines
+                value_lines = value.split('\n')
+                value = value_lines[0] # Keep first line for main display
+                extra_lines = value_lines[1:]
+
+
+            # Special handling for Color Palette - Label is omitted, value is the ANSI sequence
+            if label == "Color Palette":
+                 # Print the first line of the palette
+                 info_lines.append(value)
+                 # Print subsequent lines (second row of colors), indented
+                 for extra in extra_lines:
+                     # Indent to align roughly under where label *would* be + separator
+                     indent = max_label_len + len(config.SYS_INFO_KV_SEPARATOR) + 1
+                     info_lines.append((" " * indent) + extra)
+            else:
+                 # Standard Label: Value format
+                 padded_label = label.ljust(max_label_len)
+                 info_lines.append(
+                     f"{config.SYS_INFO_LABEL_COLOR}{padded_label}{config.RESET_COLOR}"
+                     f"{config.SYS_INFO_KV_SEPARATOR} "
+                     f"{config.SYS_INFO_VALUE_COLOR}{value}{config.RESET_COLOR}"
+                 )
+                 # Add any extra lines for this item, indented
+                 for extra in extra_lines:
+                     indent = max_label_len + len(config.SYS_INFO_KV_SEPARATOR) + 1
+                     info_lines.append((" " * indent) + extra)
+
+
+    return info_lines
+
+
+# --- Display Functions ---
+# (Keep display_art_and_info, using the updated config separator)
+def display_art_and_info(ansi_art, sys_info_lines):
+    """Displays ANSI art side-by-side with system info."""
+    art_lines = ansi_art.strip('\n').split('\n')
+    max_art_width = 0
+    if art_lines:
+        # Calculate max width *without* ANSI codes for accurate padding
+        plain_lines = [re.sub(r'\x1b\[[0-9;]*[mK]', '', line) for line in art_lines]
+        max_art_width = max(len(line) for line in plain_lines) if plain_lines else 0
+
+
+    for art_line, info_line in zip_longest(art_lines, sys_info_lines, fillvalue=""):
+        # Pad the art line to align the separator vertically
+        plain_art_line = re.sub(r'\x1b\[[0-9;]*[mK]', '', art_line)
+        padding_needed = max_art_width - len(plain_art_line)
+        padded_art_line = art_line + (" " * padding_needed)
+
+        if info_line:
+            # Use the separator from config
+            print(f"{padded_art_line}{config.IMAGE_INFO_SEPARATOR}{info_line}")
+        else:
+            # If no corresponding info line, just print the padded art line
+            print(padded_art_line)
+
+
+# Need re for display_art_and_info padding calculation
+import re
+
+# (Keep get_cache_info as it was)
 def get_cache_info(cache_file, cache):
     """ Prints statistics about the cache file """
+    print("\n=== Cache Info ===")
+    print(f"Cache file: {os.path.abspath(cache_file)}")
     try:
         file_size = os.path.getsize(cache_file) / 1024  # KB
+        print(f"File size: {file_size:.2f} KB")
     except FileNotFoundError:
+        print("File size: N/A (Cache file not found or empty)")
         file_size = 0
+    except Exception as e:
+         print(f"File size: Error calculating ({e})")
+
 
     total_entries = len(cache)
     category_counts = {}
-    for data in cache.values():
-        category = data["category"]
-        category_counts[category] = category_counts.get(category, 0) + 1
+    if total_entries > 0:
+        for key, data in cache.items():
+            if isinstance(data, dict) and "category" in data:
+                 category = data.get("category", "unknown")
+                 category_counts[category] = category_counts.get(category, 0) + 1
+            else:
+                 # Only print warning if not silent
+                 # if not args.silent: # Need args here, maybe pass it? Or simplify.
+                 # Let's just count invalids silently for now.
+                 category_counts["invalid"] = category_counts.get("invalid", 0) + 1
 
-    print("\n=== Cache Info ===")
-    print(f"Cache file: {cache_file}")
-    print(f"File size: {file_size:.2f} KB")
+
     print(f"Total cached entries: {total_entries}")
-    print("Entries per category:")
-    for category, count in category_counts.items():
-        print(f"  - {category}: {count}")
+    if category_counts:
+        print("Entries per category:")
+        for category, count in sorted(category_counts.items()):
+            print(f"  - {category}: {count}")
+    else:
+        print("No valid entries found to categorize.")
     print("==================\n")
 
+
+# --- Main Execution ---
+# (Keep main function largely the same, just ensure it uses the updated functions
+# and potentially pass args to get_cache_info if needed, or remove the silent check there)
+
 def main():
-    
-    # Get the directory of the current script
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parser = argparse.ArgumentParser(
+        description="Convert images to ANSI art with caching, categorization, and optional system info.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
-    # Use the script directory to build the default paths
-    default_rsc_dir = os.path.join(script_dir, "rsc")
-    default_cache = os.path.join(script_dir, "cache.json")
+    # Arguments using defaults from config where applicable
+    parser.add_argument("--rsc-dir", default=config.DEFAULT_RSC_DIR,
+                        help="Directory containing image files.")
+    parser.add_argument("--cache", default=config.DEFAULT_CACHE_FILE,
+                        help="Path to JSON cache file.")
+    parser.add_argument("file", nargs="?",
+                        help="Specific image file to process. If omitted, processes compatible files in --rsc-dir.")
+    parser.add_argument("--refresh", action="store_true",
+                        help="Force reprocessing images even if cached.")
+    parser.add_argument("--random", action="store_true",
+                        help="Display a random cached image, honoring category filters.")
+    parser.add_argument("--fetch-system", "--sysinfo", action="store_true",
+                        help="Display system information alongside the image.")
+    parser.add_argument("--cache-info", action="store_true",
+                        help="Display cache statistics and exit.")
+    parser.add_argument("--silent", action="store_true",
+                        help="Suppress log output (like file/category info) when displaying.")
 
-    parser = argparse.ArgumentParser(description="Convert images to ANSI art with caching and categorization")
-    
-    parser.add_argument("--rsc-dir", default=default_rsc_dir, help=f"Directory containing image files (default: {default_rsc_dir})")
-    parser.add_argument("--cache", default=default_cache, help=f"Path to JSON cache file (default: {default_cache})")
-    
-    parser.add_argument("file", nargs="?", help="Image file to process. If omitted, all .gif files in rsc/ directory are processed.")
-    parser.add_argument("--refresh", action="store_true", help="Force reprocessing images even if cached")
-    parser.add_argument("--random", action="store_true", help="Display a random cached image")
-    parser.add_argument("--cache-info", action="store_true", help="Display cache statistics")
-    parser.add_argument("--small-threshold", type=int, default=20, help="Threshold for small images (default: 20)")
-    parser.add_argument("--medium-threshold", type=int, default=40, help="Threshold for medium images (default: 40)")
-    parser.add_argument("--large-threshold", type=int, default=60, help="Threshold for large images (default: 60)")
-    parser.add_argument("--small", action="store_true", help="Enable processing of small images")
-    parser.add_argument("--medium", action="store_true", help="Enable processing of medium images")
-    parser.add_argument("--large", action="store_true", help="Enable processing of large images")
-    parser.add_argument("--extra-large", action="store_true", help="Enable processing of extra-large images")
-    parser.add_argument("--silent", action="store_true", help="Disables log output when running the --random flag")
+    # Category filtering (no changes needed here)
+    parser.add_argument("--small", dest="filter_small", action="store_true", help="Filter for small images.")
+    parser.add_argument("--medium", dest="filter_medium", action="store_true", help="Filter for medium images.")
+    parser.add_argument("--large", dest="filter_large", action="store_true", help="Filter for large images.")
+    parser.add_argument("--extra-large", dest="filter_xl", action="store_true", help="Filter for extra-large images.")
+
 
     args = parser.parse_args()
+
+    # --- Load Cache ---
     cache = load_cache(args.cache)
 
+    # --- Cache Info Mode ---
     if args.cache_info:
         get_cache_info(args.cache, cache)
         sys.exit(0)
 
-    # Determine selected categories.
+    # --- Determine Category Filters ---
     selected_categories = set()
-    if args.small:
-        selected_categories.add("small")
-    if args.medium:
-        selected_categories.add("medium")
-    if args.large:
-        selected_categories.add("large")
-    if args.extra_large:
-        selected_categories.add("extra-large")
+    if args.filter_small: selected_categories.add("small")
+    if args.filter_medium: selected_categories.add("medium")
+    if args.filter_large: selected_categories.add("large")
+    if args.filter_xl: selected_categories.add("extra-large")
     filter_categories = len(selected_categories) > 0
 
-    # Handle random image selection.
+    # --- Random Image Mode ---
     if args.random:
-        valid_entries = [key for key, data in cache.items() if not filter_categories or data["category"] in selected_categories]
-        if not valid_entries:
-            print("No images in cache match the selected categories.")
+        if not cache:
+             print("Cache is empty. Cannot select a random image.", file=sys.stderr)
+             sys.exit(1)
+
+        valid_keys = [
+            key for key, data in cache.items()
+            if isinstance(data, dict) and "category" in data and \
+               (not filter_categories or data["category"] in selected_categories)
+        ]
+
+        if not valid_keys:
+            print("No cached images match the selected criteria.", file=sys.stderr)
             sys.exit(1)
 
-        random_key = random.choice(valid_entries)
+        random_key = random.choice(valid_keys)
         data = cache[random_key]
+
+        # Validate data structure before accessing keys
+        if not isinstance(data, dict) or "ansi_art" not in data:
+             print(f"Error: Invalid data format in cache for key {random_key}", file=sys.stderr)
+             sys.exit(1)
+
+
         if not args.silent:
             print(f"Random Image: {random_key}")
-            print(f"Category: {data['category']} ({data['num_lines']} lines)")
-        print(data["ansi_art"])
+            print(f"Category: {data.get('category', 'N/A')} ({data.get('num_lines', '?')} lines)")
+
+        if args.fetch_system:
+             sys_info = get_formatted_system_info()
+             display_art_and_info(data["ansi_art"], sys_info)
+        else:
+             print(data["ansi_art"])
+
         sys.exit(0)
 
-    # Determine which files to process.
+    # --- File/Directory Processing Mode ---
     files_to_process = []
     if args.file:
-        files_to_process = [args.file]
+        if os.path.isfile(args.file):
+             files_to_process.append(args.file)
+        else:
+             print(f"Error: Specified file not found: {args.file}", file=sys.stderr)
+             sys.exit(1)
     else:
         if not os.path.isdir(args.rsc_dir):
-            print(f"Directory {args.rsc_dir} does not exist.")
+            print(f"Error: Resource directory not found: {args.rsc_dir}", file=sys.stderr)
             sys.exit(1)
-        for entry in os.listdir(args.rsc_dir):
-            if entry.lower().endswith(".gif"):
-                files_to_process.append(os.path.join(args.rsc_dir, entry))
+        try:
+            supported_extensions = ('.gif', '.png', '.jpg', '.jpeg', '.bmp', '.webp')
+            all_entries = os.listdir(args.rsc_dir)
+            for entry in all_entries:
+                if entry.lower().endswith(supported_extensions):
+                     full_path = os.path.join(args.rsc_dir, entry)
+                     if os.path.isfile(full_path): # Ensure it's a file, not a dir named like an image
+                         files_to_process.append(full_path)
+            if not files_to_process and not args.silent :
+                 print(f"No supported image files found in {args.rsc_dir}")
 
-    # Process each image file.
+        except OSError as e:
+             print(f"Error reading directory {args.rsc_dir}: {e}", file=sys.stderr)
+             sys.exit(1)
+
+
+    if not files_to_process and not args.silent:
+        print("No image files specified or found to process.")
+        # Don't exit yet, need to save cache if changes were made (unlikely here, but good practice)
+        # sys.exit(0) # Exiting here prevents cache saving
+
+
+    processed_count = 0
+    cache_updated = False
+    sys_info = get_formatted_system_info() if args.fetch_system else None
+
     for file_path in files_to_process:
         key = os.path.abspath(file_path)
+        data = None
+
         if not args.refresh and key in cache:
-            data = cache[key]
-        else:
-            data = process_image(file_path, args.small_threshold, args.medium_threshold, args.large_threshold)
-            if data is None:
+             cached_data = cache[key]
+             if isinstance(cached_data, dict) and "ansi_art" in cached_data and "category" in cached_data:
+                 data = cached_data
+                 if not args.silent: print(f"Using cached data for: {os.path.basename(file_path)}")
+             elif not args.silent:
+                  print(f"Invalid cache data for {os.path.basename(file_path)}. Reprocessing.", file=sys.stderr)
+
+        if data is None:
+            if not args.silent: print(f"Processing: {os.path.basename(file_path)}")
+            processed_data = process_image(file_path)
+            if processed_data:
+                data = processed_data
+                cache[key] = data
+                cache_updated = True # Mark cache as needing save
+            else:
+                if not args.silent: print(f"Skipping due to processing error: {os.path.basename(file_path)}", file=sys.stderr)
                 continue
-            cache[key] = data
-        
-        if filter_categories and data["category"] not in selected_categories:
+
+        # Filter by category
+        current_category = data.get("category")
+        if filter_categories and current_category not in selected_categories:
+            if not args.silent: print(f"Skipping (category filter): {os.path.basename(file_path)} ({current_category})")
             continue
 
-        print(f"File: {file_path}")
-        print(f"Category: {data['category']} ({data['num_lines']} lines)")
-        print(data["ansi_art"])
+        # Handle potentially empty processed images
+        if current_category == "empty" and not data.get("ansi_art"):
+            if not args.silent: print(f"Skipping (empty result): {os.path.basename(file_path)}")
+            continue
 
-    save_cache(cache, args.cache)
+
+        processed_count += 1
+        if not args.silent:
+            print(f"\n--- File: {os.path.basename(file_path)} ---")
+            print(f"Category: {current_category} ({data.get('num_lines', '?')} lines)")
+
+        if args.fetch_system:
+             display_art_and_info(data["ansi_art"], sys_info)
+        else:
+             print(data["ansi_art"])
+
+
+    if processed_count == 0 and not args.silent and files_to_process:
+         print("No images were displayed (check filters or processing errors).")
+
+    if cache_updated:
+        if not args.silent: print("\nSaving updated cache...")
+        save_cache(cache, args.cache)
+    elif not args.silent:
+         # Only print if we actually processed files or tried to
+         if files_to_process or args.file:
+              print("\nCache up to date.")
+
 
 if __name__ == "__main__":
     main()
