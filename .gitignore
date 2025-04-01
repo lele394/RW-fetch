@@ -1,2 +1,4 @@
 cache.json
 __pycache__/
+rw_fetch_rs/target/
+rw_fetch_rs/.cargo/

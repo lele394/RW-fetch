@@ -1,0 +1,21 @@
+[package]
+name = "rw_fetch_rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] } # For JSON deserialization
+serde_json = "1.0"         # JSON handling
+rand = "0.8"               # Random number generation
+sysinfo = "0.30"           # System information (use a recent version)
+users = "0.11"             # Get current username
+colored = "2.1"            # For adding ANSI colors easily
+lazy_static = "1.4"        # For initializing sysinfo::System once
+regex = "1"                # For stripping ANSI codes to calculate width
+threadpool = "1.8"         # Add the threadpool crate
+
+[profile.release]
+opt-level = 3         # Optimize for maximum execution speed
+lto = "fat"           # Enable the most aggressive Link Time Optimization
+codegen-units = 1     # Reduce the number of code generation units, increasing optimization time but improving performance
+panic = "abort"       # Use 'abort' instead of 'unwind' for panic handling

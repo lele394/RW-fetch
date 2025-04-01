@@ -254,6 +254,14 @@ Example for Fish shell (`~/.config/fish/config.fish`):
 
 *Replace `/path/to/rw-fetch/` with the actual path to where you cloned the repository.* Make sure the cache has been generated at least once before adding it to your startup file.
 
+### Using Rust version
+
+I made a small compiled version to avoid having to initialize conda in my terminal everytime. (not gonna lie, chugged it to Gemini 2.5).
+
+Please make sure to first process a cache using python. Compile the rust version using `compile_rust.sh`, which will copy back the executable in your directory. Now you can `chmod +x rw_fetch_rs.o` and use it directly.
+
+Use this method if you would rather not use python on each shell spawn.
+
 ## Contributing 🤝
 
 Open an issue with your request and potential fixes. I'll see what I can do!
