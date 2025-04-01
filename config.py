@@ -29,6 +29,7 @@ SYSTEM_INFO_ORDER = [
     {"label": "Icons"},           # Still uses shell command
     {"label": "Terminal"},
     {"label": "Terminal Font"},   # Still uses shell command (very unreliable)
+    {"separator": True},
     {"separator": "Hardware"},
     {"label": "CPU"},
     {"label": "GPU"},             # Still uses shell command
@@ -111,7 +112,7 @@ FALLBACK_COMMANDS = {
 SYS_INFO_LABEL_COLOR = "\033[1;34m"
 SYS_INFO_VALUE_COLOR = "\033[0;37m"
 SYS_INFO_SEPARATOR_CHAR = "-"
-SYS_INFO_KV_SEPARATOR = ":"
+SYS_INFO_KV_SEPARATOR = " >"
 SYS_INFO_ERROR_COLOR = "\033[0;31m"
 SYS_INFO_WARN_COLOR = "\033[0;33m" # Yellow for warnings like missing psutil
 RESET_COLOR = "\033[0m"
