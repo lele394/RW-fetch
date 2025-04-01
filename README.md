@@ -1,190 +1,265 @@
 # <div align="center"><img src="https://raw.githubusercontent.com/lele394/lele394/main/rsc/77.gif"   style="width: calc(43 / 41 * 100%);;  height: 100%;"  /> RW-fetch <img src="https://raw.githubusercontent.com/lele394/lele394/main/rsc/74.gif"   style="width: calc(43 / 41 * 100%);;  height: 100%;"  />
 </div>  
 
-Welcome to **RW-fetch** – your terminal’s nostalgic gateway to the pixel art of *Revived Witch*! This project converts GIFs from the once-popular gacha game *Revived Witch* (which has sadly reached its end of service) into vibrant ANSI art for your terminal. Enjoy a blast from the past every time you open your terminal!
+Welcome to **RW-fetch** – your terminal’s nostalgic gateway to the pixel art of *Revived Witch*! This project converts GIFs and other images (with a focus on those from the gacha game *Revived Witch*, which has sadly reached its end of service) into vibrant ANSI art for your terminal. Enjoy a blast from the past, optionally displayed alongside your system information, every time you open your shell!
 
 _Distributed under the [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/) license._
-
----
 
 ## Table of Contents 📚
 
 - [Overview 🌟](#overview-)
 - [Features ✨](#features-)
 - [Installation 🛠️](#installation-)
-- [Usage 🚀](#usage-)
-  - [Adding New GIFs 📁](#adding-new-gifs-)
+- [Get Started 🚀](#get-started-)
+  - [Adding New Images/GIFs 📁](#adding-new-imagesgifs-)
+  - [Generating the Cache ⚡](#generating-the-cache-)
+  - [Basic Display Commands 💻](#basic-display-commands-)
+- [Usage Details ⚙️](#usage-details-)
   - [Cache Management 💾](#cache-management-)
-  - [Category Thresholds 📏](#category-thresholds-)
+  - [Image Categorization & Thresholds 📏](#image-categorization--thresholds-)
   - [Displaying Random Images 🎲](#displaying-random-images-)
+  - [System Information Display 📊](#system-information-display-)
 - [Examples 🔍](#examples-)
-- [Parameters Explained ⚙️](#parameters-explained-)
+- [Parameters Explained 🎛️](#parameters-explained-%EF%B8%8F)
 - [Terminal Startup Integration ⏰](#terminal-startup-integration-)
 - [Contributing 🤝](#contributing-)
 - [License 📄](#license-)
 
----
-
-## Presentation Video
-
-Check out our presentation below:
-
-[Screencast from 2025-03-14 14-59-01.webm](https://github.com/user-attachments/assets/4d8ff2b2-d5b6-4488-bdeb-b4f3f4cadea2)
-
----
-
-## Some Notes
-
-Yes, **RW-fetch**, like **Neofetch**. ***"but it's not like neofetch!"*** Indeed, not yet. It's planned, I will add system info later and tie it to the `small` category. It's coming I swear.
-
----
-
 ## Overview 🌟
 
-**RW-fetch** is a specialized tool for converting GIFs extracted from *Revived Witch* – a pixel art gacha game that captured many hearts before its unfortunate end-of-service. This script transforms these GIFs into ANSI art with minimal redundancy in escape codes, categorizes each image by size, and caches the output for faster re-displays. Perfect for reliving those retro gaming moments every time you fire up your terminal!
+RW-fetch is a Python script designed to:
 
-Note : This program, though developped for RW is compatible with ay kind of GIFs.
+1.  **Convert Images:** Transform static images and animated GIFs (like those from *Revived Witch*) into ANSI escape sequences suitable for display in modern terminals. It uses the half-block character (`▀`) technique for higher vertical resolution and attempts to preserve transparency.
+2.  **Display Art:** Render the generated ANSI art directly in your terminal.
+3.  **Show System Info:** Optionally fetch and display key system statistics alongside the artwork, using Python APIs where possible for speed and portability, and falling back to shell commands for harder-to-get information.
+4.  **Cache Results:** Store the generated ANSI art and image metadata in a JSON cache file (`cache.json` by default) to significantly speed up subsequent displays, especially for random selections.
+5.  **Categorize & Filter:** Classify images based on the height of their ANSI art ("small", "medium", "large", "extra-large") and allow filtering based on these categories.
 
----
+It aims to be a fun, visually appealing, and informative addition to your terminal environment, powered by Python, Pillow, and optionally `psutil` and `orjson` for enhanced performance and features.
 
 ## Features ✨
 
-- **GIF to ANSI Art Conversion:** Efficiently converts static and animated GIFs from *Revived Witch* into colorful ANSI static art.
-- **Caching:** Automatically saves processed images into a JSON cache to speed up future runs.
-- **Cache Information:** Quickly view details like cache file size and entry count per category.
-- **Category Filtering:** Filter images by size (small, medium, large, extra-large) based on customizable line-count thresholds.
-- **Random Image Display:** Fetch a random image from the cache, with options for silent output and category restrictions.
-- **Optimized ANSI Output:** Reduces redundant ANSI escape codes for a cleaner terminal display.
-- **Terminal Startup Ready:** Designed to run on terminal startup, giving you a nostalgic pixel art greeting every time you open your terminal.
-
----
+*   **Image to ANSI Conversion:** Renders images (PNG, GIF, JPG, WEBP, BMP) as ANSI art using 24-bit color escape codes.
+*   **Animated GIF Support:** Selects a random frame from animated GIFs for conversion.
+*   **Transparency & Cropping:** Handles transparent backgrounds and automatically crops transparent borders before conversion.
+*   **Efficient Caching:** Stores generated ANSI art and metadata (category, line count) in a JSON file (`cache.json`) for fast subsequent access. Uses `orjson` if available for faster JSON processing.
+*   **Image Categorization:** Automatically categorizes images into `small`, `medium`, `large`, or `extra-large` based on the generated ANSI art height (configurable thresholds in `config.py`).
+*   **System Information:** Fetches and displays system info (OS, Kernel, Uptime, CPU, Memory, etc.).
+    *   Prioritizes Python APIs (`platform`, `psutil`, `socket`, etc.) for speed and reliability.
+    *   Uses `psutil` (optional dependency) for detailed CPU usage, Memory usage, and accurate Uptime.
+    *   Provides configurable shell command fallbacks (in `config.py`) for information not easily accessible via Python (e.g., Packages, WM, GPU, Theme).
+    *   System info layout and content are configurable via `config.py`.
+*   **Filtering:** Allows displaying images based on specific categories (`--small`, `--medium`, etc.), useful with `--random` or when processing a directory.
+*   **Random Display:** Selects and displays a random image from the cache (`--random`), respecting category filters if applied.
+*   **Configurable:** Key settings like paths, category thresholds, system info order/commands, and colors are managed in `config.py`.
+*   **Cross-Platform:** Primarily Python-based, aiming for compatibility across Linux, macOS, and potentially WSL. Note that some fallback shell commands for system info might be OS-specific.
+*   **Silent Mode:** Suppresses informational messages (`--silent`) for cleaner output, ideal for terminal startup scripts.
 
 ## Installation 🛠️
 
-1. **Clone the repository** or download the project files:
+1.  **Prerequisites:**
+    *   Python 3.6 or later.
+    *   `pip` (Python package installer).
+
+2.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/yourusername/rw-fetch.git
+    git clone https://github.com/your-username/rw-fetch.git # Replace with the actual repo URL
     cd rw-fetch
     ```
 
-2. **Install the required dependency:**
+3.  **Install Required Python Dependencies:**
+    *   **Pillow (PIL Fork):** For image processing.
     ```bash
     pip install Pillow
     ```
 
-3. **Prepare your GIFs:**  
-   Place your *Revived Witch* GIFs into the default `rsc/` directory or specify a custom directory using the `--rsc-dir` parameter.
+4.  **Install Recommended Python Dependencies (Optional but highly suggested):**
+    *   **psutil:** Provides more accurate and detailed system information (CPU Usage, Memory, Uptime) reliably across platforms.
+    *   **orjson:** Offers significantly faster JSON parsing and serialization, speeding up cache loading/saving.
+    ```bash
+    pip install psutil orjson
+    ```
+    If `psutil` is not installed, the script will show warnings and some system info fields (like Memory, detailed Uptime) will display "N/A" or rely on less reliable methods. If `orjson` is not found, it falls back to Python's built-in `json` module.
 
----
+5.  **System Dependencies (for Fallback Commands):**
+    *   Some system information items rely on external commands (defined in `config.py`). You might need to install tools like `lspci`, `xrandr`, `wmctrl`, `gsettings` (for GNOME/GTK), `kreadconfig5` (for KDE Plasma), `jq`, `system_profiler` (macOS), `dpkg-query` (Debian/Ubuntu), `rpm` (Fedora/CentOS), `snap`, `flatpak` depending on your OS and what information you want displayed accurately via the fallbacks. The script attempts to handle their absence gracefully but might show "N/A" or errors for those specific fields if the commands fail or are missing.
 
-## Usage 🚀
+6.  **Make the Script Executable (Optional):**
+    ```bash
+    chmod +x rw_fetch.py
+    ```
+    This allows you to run it directly using `./rw_fetch.py` instead of `python rw_fetch.py`.
 
-### Adding New GIFs 📁
+## Get Started 🚀
 
-Simply add any new GIFs from *Revived Witch* to the `rsc/` directory (or your chosen directory). The script will automatically detect and process all `.gif` files unless you specify a particular file as an argument.
+This section provides the quickest way to get RW-fetch running.
+
+### Adding New Images/GIFs 📁
+
+*   By default, the script looks for images in a directory named `rsc` located in the same directory as the script.
+*   Simply **place your `.gif`, `.png`, `.jpg`, `.webp`, or `.bmp` files inside the `rsc/` directory.**
+*   You can change the source directory using the `--rsc-dir <path>` argument.
+
+### Generating the Cache ⚡
+
+*   The cache stores the pre-converted ANSI art, making future runs (especially `--random`) much faster.
+*   To generate or update the cache for all supported images found in the `rsc/` directory (or the one specified by `--rsc-dir`), simply run the script without the `--random` or specific file arguments:
+    ```bash
+    # If you made it executable:
+    ./rw_fetch.py
+
+    # Or using python:
+    python rw_fetch.py
+    ```
+*   The script will process each image, display it (unless `--silent` is used), and save the results to `cache.json` (or the file specified by `--cache`). You only need to do this once initially, or whenever you add/remove images, or if you want to refresh existing entries (using `--refresh`).
+
+### Basic Display Commands 💻
+
+*   **Display a specific image:**
+    ```bash
+    ./rw_fetch.py rsc/your_favorite.gif
+    ```
+
+*   **Display a random image from the cache:**
+    ```bash
+    ./rw_fetch.py --random
+    ```
+
+*   **Display a random image with system info:**
+    ```bash
+    ./rw_fetch.py --random --sysinfo
+    ```
+
+*   **Display a random *small* image, with system info, silently (ideal for startup):**
+    ```bash
+    ./rw_fetch.py --random --small --sysinfo --silent
+    ```
+
+## Usage Details ⚙️
 
 ### Cache Management 💾
 
-- **Creating/Loading Cache:**  
-  On the first run, the script generates a cache file (`cache.json` by default). Future executions load this cache, avoiding the need to reprocess unchanged GIFs.
-  
-- **Refreshing Cache:**  
-  To reprocess all images (for example, after updating GIFs), use the `--refresh` flag. This will update the cache with the latest ANSI art conversions.
+*   **Cache File:** By default, `cache.json` in the script's directory. Use `--cache <path>` to specify a different location.
+*   **Automatic Caching:** When processing a directory or a specific file (without `--refresh`), the script checks the cache first. If a valid entry exists, it's used. Otherwise, the image is processed, and the result is added to the cache.
+*   **Forcing Refresh:** Use `--refresh` to ignore existing cache entries and force reprocessing of images. The cache will be updated with the new results.
+    ```bash
+    ./rw_fetch.py --refresh # Reprocess all images in rsc/
+    ./rw_fetch.py rsc/image.png --refresh # Reprocess only image.png
+    ```
+*   **Viewing Cache Info:** Use `--cache-info` to display statistics about the current cache file (path, size, number of entries, category breakdown).
+    ```bash
+    ./rw_fetch.py --cache-info
+    ```
 
-### Category Thresholds 📏
+### Image Categorization & Thresholds 📏
 
-The ANSI art output is classified by the number of lines it generates. Customize these thresholds to best suit the pixel art style of *Revived Witch*:
-
-- `--small-threshold`: Images with fewer than this number of lines are classified as **small** (default: 20).
-- `--medium-threshold`: Images with line counts between the small threshold and this value are **medium** (default: 40).
-- `--large-threshold`: Images with line counts between the medium threshold and this value are **large** (default: 60).  
-  Images with line counts equal to or above this threshold are classified as **extra-large**.
+*   Images are categorized based on the number of lines in their generated ANSI art:
+    *   `small`: Fewer lines than `SMALL_THRESHOLD`
+    *   `medium`: Fewer lines than `MEDIUM_THRESHOLD`
+    *   `large`: Fewer lines than `LARGE_THRESHOLD`
+    *   `extra-large`: Equal to or more lines than `LARGE_THRESHOLD`
+*   These thresholds (`SMALL_THRESHOLD`, `MEDIUM_THRESHOLD`, `LARGE_THRESHOLD`) can be adjusted in the `config.py` file.
 
 ### Displaying Random Images 🎲
 
-Craving a surprise from the past? Use the `--random` flag to display a random cached image. Combine it with:
-- `--silent` to suppress extra log output (only the ANSI art is shown).
-- Category flags (like `--small`, `--medium`) to restrict the selection to specific sizes.
+*   The `--random` flag selects a random entry from the cache.
+*   You can combine `--random` with category filters:
+    ```bash
+    ./rw_fetch.py --random --medium # Show a random medium-sized image
+    ./rw_fetch.py --random --large --extra-large # Show a random large OR extra-large image
+    ```
+*   If no cached images match the filter criteria, an error message is shown.
 
----
+### System Information Display 📊
+
+*   Use `--fetch-system` or its alias `--sysinfo` to display system information alongside the image.
+*   The information displayed, its order, labels, colors, and any fallback commands used are defined in `config.py` within the `SYSTEM_INFO_ORDER` list and `FALLBACK_COMMANDS` dictionary.
+*   If `psutil` is not installed, fields like Memory, detailed Uptime, and CPU frequency/usage might show "N/A" or limited information, and a warning message will be appended.
+*   Fallback commands are executed via `subprocess` if a direct Python method isn't available or specified for a label in `SYSTEM_INFO_ORDER`. Errors during command execution (e.g., command not found, timeout) are displayed inline.
 
 ## Examples 🔍
 
-1. **Process all GIFs in the `rsc/` directory and update the cache:**
+1.  **Process and display a specific image:**
     ```bash
-    ./script.py
+    ./rw_fetch.py rsc/witch_stand.gif
     ```
 
-2. **Refresh the cache (force reprocessing) for all GIFs:**
+2.  **Process/display a specific image and show system info:**
     ```bash
-    ./script.py --refresh
+    ./rw_fetch.py rsc/another.png --sysinfo
     ```
 
-3. **Process a specific GIF file:**
+3.  **Build/update the cache for all images in `rsc/` (shows processing output):**
     ```bash
-    ./script.py path/to/your/image.gif
+    ./rw_fetch.py
     ```
 
-4. **Set custom category thresholds:**
+4.  **Show a random image from the cache:**
     ```bash
-    ./script.py --small-threshold 25 --medium-threshold 45 --large-threshold 70
+    ./rw_fetch.py --random
     ```
 
-5. **Display cache information:**
+5.  **Show a random LARGE or EXTRA-LARGE image with system info:**
     ```bash
-    ./script.py --cache-info
+    ./rw_fetch.py --random --large --extra-large --sysinfo
     ```
 
-6. **Display a random image (from small and medium categories) silently:**
+6.  **Show statistics about the cache:**
     ```bash
-    ./script.py --random --silent --small --medium
+    ./rw_fetch.py --cache-info
     ```
 
----
+7.  **Show a random SMALL image with system info, without any log messages (good for startup):**
+    ```bash
+    ./rw_fetch.py --random --small --sysinfo --silent
+    ```
 
-## Parameters Explained ⚙️
+8.  **Force reprocessing of all images in a custom directory:**
+    ```bash
+    ./rw_fetch.py --rsc-dir /path/to/my/images --refresh
+    ```
 
-- **Positional Argument:**
-  - `file`: (Optional) Specific image file to process. If omitted, all `.gif` files in the designated directory are processed.
+## Parameters Explained 🎛️
 
-- **Optional Arguments:**
-  - `--rsc-dir`: Directory containing *Revived Witch* GIF images (default: `rsc`).
-  - `--cache`: Path to the JSON cache file (default: `cache.json`).
-  - `--refresh`: Forces reprocessing of images even if they are already cached.
-  - `--random`: Displays a random cached image.
-  - `--cache-info`: Outputs statistics about the cache (e.g., file size, total entries, entries per category).
-  - `--small-threshold`: Maximum number of lines for an image to be considered **small** (default: 20).
-  - `--medium-threshold`: Upper limit for **medium** images (default: 40).
-  - `--large-threshold`: Upper limit for **large** images (default: 60). Images with line counts equal to or above this are **extra-large**.
-  - `--small`, `--medium`, `--large`, `--extra-large`: Flags to filter images by their size category.
-  - `--silent`: When used with `--random`, minimizes extra log output (only the ANSI art is displayed).
-
----
+*   `--rsc-dir <path>`: Specifies the directory containing image files. (Default: `./rsc`)
+*   `--cache <path>`: Specifies the path to the JSON cache file. (Default: `./cache.json`)
+*   `file`: (Positional argument) Path to a specific image file to process. If omitted, the script processes compatible files in `--rsc-dir`.
+*   `--refresh`: Ignores existing cache entries and forces reprocessing of the specified image(s). Updates the cache with the new result.
+*   `--random`: Displays a random image from the cache, honoring category filters if set.
+*   `--fetch-system`, `--sysinfo`: Displays system information alongside the image art.
+*   `--cache-info`: Displays statistics about the cache file (size, entry count, categories) and exits.
+*   `--silent`: Suppresses non-essential output (like "Processing:", "Cached:", category info). Useful for clean output in scripts or terminal startup.
+*   `--small`: Filters for images categorized as "small". Used with `--random` or when processing a directory.
+*   `--medium`: Filters for images categorized as "medium".
+*   `--large`: Filters for images categorized as "large".
+*   `--extra-large`: Filters for images categorized as "extra-large".
 
 ## Terminal Startup Integration ⏰
 
-For a daily blast of pixel art nostalgia, you can configure your terminal to run **RW-fetch** on startup. Add the following line to your shell’s startup file (like `~/.bashrc` or `~/.zshrc`):
+You can add RW-fetch to your shell's startup file (like `.bashrc`, `.zshrc`, `.config/fish/config.fish`) to see a random artwork every time you open a new terminal. Remember to use the full path to the script unless it's in your system's PATH. Using `--silent` is recommended here.
+
+Example for `.bashrc` or `.zshrc`:
 
 ```bash
-# Display a random Revived Witch ANSI art image on terminal startup
-/path/to/rw-fetch/script.py --random --silent
+# Add this line at the end of your ~/.bashrc or ~/.zshrc
+/path/to/rw-fetch/rw_fetch.py --random --small --sysinfo --silent
 ```
 
+Example for Fish shell (`~/.config/fish/config.fish`):
 
-Or, to limit the random selection to smaller images:
-```bash
-/path/to/rw-fetch/script.py --random --silent --small --medium
+```fish
+# Add this line to your config.fish
+/path/to/rw-fetch/rw_fetch.py --random --small --sysinfo --silent
 ```
 
----
+*Replace `/path/to/rw-fetch/` with the actual path to where you cloned the repository.* Make sure the cache has been generated at least once before adding it to your startup file.
 
+## Contributing 🤝
+
+Open an issue with your request and potential fixes. I'll see what I can do!
 
 ## License 📄
 
-This project is distributed under the [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/) license. You are free to use, share, and modify the project for non-commercial purposes as long as you attribute the original work and share your modifications under the same license.
+This project is distributed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License. See the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) page for more details.
 
----
-
-Enjoy reviving the pixel art memories of *Revived Witch* in your terminal every day. Happy coding and keep the retro vibes alive! 😄
-
-# Long Live The Witch!
+Essentially, you are free to share and adapt the work for non-commercial purposes, provided you give appropriate credit, indicate if changes were made, and share any derivative works under the same license.
